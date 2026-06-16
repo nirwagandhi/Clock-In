@@ -15,7 +15,142 @@ struct ContentView: View {
     @State private var windowSize: CGSize = .zero
     @Environment(\.openWindow) private var openWindow
     
+    // Solid color components
+    @AppStorage("clockColorRed") private var red: Double = 1.0
+    @AppStorage("clockColorGreen") private var green: Double = 1.0
+    @AppStorage("clockColorBlue") private var blue: Double = 1.0
+    @AppStorage("clockColorAlpha") private var alpha: Double = 1.0
+    
+    // Gradient mode
+    @AppStorage("useGradient") private var useGradient: Bool = false
+    @AppStorage("gradientDirection") private var gradientDirection: String = "horizontal"
+    @AppStorage("gradientType") private var gradientType: String = "linear"
+    @AppStorage("gradientAngle") private var gradientAngle: Double = 0.0
+    @AppStorage("gradientStops") private var gradientStopsJSON: String = ""
+    
+    @State private var gradientStops: [GradientStop] = []
+    
+    struct GradientStop: Codable {
+        var color: CodableColor
+        var position: Double
+        
+        struct CodableColor: Codable {
+            var red: Double
+            var green: Double
+            var blue: Double
+            var alpha: Double
+            
+            var color: Color {
+                Color(red: red, green: green, blue: blue, opacity: alpha)
+            }
+        }
+    }
+    
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var clockColor: Color {
+        // Use first gradient stop color, or default
+        if !gradientStops.isEmpty {
+            return gradientStops[0].color.color
+        }
+        return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+    
+    enum GradientDirection: String {
+        case horizontal = "horizontal"
+        case vertical = "vertical"
+        case diagonal = "diagonal"
+        case diagonalReverse = "diagonalReverse"
+        case radial = "radial"
+        case custom = "custom"
+        
+        var startPoint: UnitPoint {
+            switch self {
+            case .horizontal: return .leading
+            case .vertical: return .top
+            case .diagonal: return .topLeading
+            case .diagonalReverse: return .topTrailing
+            case .radial: return .center
+            case .custom: return .center // Will be overridden by angle calculation
+            }
+        }
+        
+        var endPoint: UnitPoint {
+            switch self {
+            case .horizontal: return .trailing
+            case .vertical: return .bottom
+            case .diagonal: return .bottomTrailing
+            case .diagonalReverse: return .bottomLeading
+            case .radial: return .bottomTrailing
+            case .custom: return .center // Will be overridden by angle calculation
+            }
+        }
+    }
+    
+    var selectedDirection: GradientDirection {
+        GradientDirection(rawValue: gradientDirection) ?? .horizontal
+    }
+    
+    // Convert angle to start/end points for SwiftUI gradient
+    func pointsForAngle(_ angle: Double) -> (UnitPoint, UnitPoint) {
+        // Convert to radians
+        let radians = angle * .pi / 180.0
+        
+        // Calculate the endpoint based on angle
+        // 0° = left to right, 90° = top to bottom, etc.
+        let x = cos(radians)
+        let y = sin(radians)
+        
+        // Calculate start and end points
+        let startX = 0.5 - x * 0.5
+        let startY = 0.5 + y * 0.5
+        let endX = 0.5 + x * 0.5
+        let endY = 0.5 - y * 0.5
+        
+        return (
+            UnitPoint(x: startX, y: startY),
+            UnitPoint(x: endX, y: endY)
+        )
+    }
+    
+    func gradientStyle(opacity: Double = 1.0) -> AnyShapeStyle {
+        if !useGradient || gradientStops.isEmpty {
+            return AnyShapeStyle(clockColor.opacity(opacity))
+        }
+        
+        // Create gradient stops with opacity applied
+        let stops = gradientStops.sorted { $0.position < $1.position }.map {
+            Gradient.Stop(color: $0.color.color.opacity(opacity), location: $0.position)
+        }
+        
+        // Check gradient type (linear or radial)
+        if gradientType == "radial" {
+            return AnyShapeStyle(
+                RadialGradient(
+                    stops: stops,
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 200
+                )
+            )
+        } else {
+            // For linear gradients, use custom angle if preset is "custom"
+            let points: (UnitPoint, UnitPoint)
+            if selectedDirection == .custom {
+                points = pointsForAngle(gradientAngle)
+            } else {
+                points = (selectedDirection.startPoint, selectedDirection.endPoint)
+            }
+            
+            return AnyShapeStyle(
+                LinearGradient(
+                    stops: stops,
+                    startPoint: points.0,
+                    endPoint: points.1
+                )
+            )
+        }
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -28,7 +163,7 @@ struct ContentView: View {
                     // Day of the week
                     Text(currentTime.formatted(.dateTime.weekday(.wide)))
                         .font(.system(size: scaledValue(100, for: geometry.size), weight: .thin, design: .default))
-                        .foregroundColor(.white)
+                        .foregroundStyle(gradientStyle())
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .textCase(.uppercase)
                         .kerning(scaledValue(30, for: geometry.size))
@@ -38,7 +173,7 @@ struct ContentView: View {
                     // Date
                     Text(currentTime.formatted(date: .long, time: .omitted))
                         .font(.system(size: scaledValue(40, for: geometry.size), weight: .thin, design: .default))
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundStyle(gradientStyle(opacity: 0.9))
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .fixedSize(horizontal: false, vertical: true)
                         .kerning(scaledValue(10, for: geometry.size))
@@ -47,7 +182,7 @@ struct ContentView: View {
                     // Current time
                     Text(currentTime.formatted(date: .omitted, time: .shortened))
                         .font(.system(size: scaledValue(90, for: geometry.size), weight: .thin, design: .default))
-                        .foregroundColor(.white)
+                        .foregroundStyle(gradientStyle())
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .fixedSize(horizontal: false, vertical: true)
                         .minimumScaleFactor(0.5)
@@ -115,6 +250,9 @@ struct ContentView: View {
         .onAppear {
             updateWindowResizability()
             
+            // Load gradient stops
+            loadGradientStops()
+            
             // Add keyboard shortcuts
             NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 // Command+R to recenter window
@@ -127,6 +265,23 @@ struct ContentView: View {
         }
         .onChange(of: isRepositionMode) { oldValue, newValue in
             updateWindowResizability()
+        }
+        .onChange(of: gradientStopsJSON) { _, _ in
+            loadGradientStops()
+        }
+    }
+    
+    private func loadGradientStops() {
+        if !gradientStopsJSON.isEmpty,
+           let data = gradientStopsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([GradientStop].self, from: data) {
+            gradientStops = decoded
+        } else {
+            // Default gradient stops
+            gradientStops = [
+                GradientStop(color: GradientStop.CodableColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), position: 0.0),
+                GradientStop(color: GradientStop.CodableColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0), position: 1.0)
+            ]
         }
     }
     
