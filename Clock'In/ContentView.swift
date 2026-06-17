@@ -173,8 +173,8 @@ struct ContentView: View {
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .textCase(.uppercase)
                         .kerning(scaledValue(30, for: geometry.size))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.3)
                     
                     // Date
                     Text(currentTime.formatted(date: .long, time: .omitted))
