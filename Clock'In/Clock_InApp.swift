@@ -96,6 +96,7 @@ struct Clock_InApp: App {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
+            window.styleMask.insert(.borderless)
             
             // Remove window control buttons (minimize, close, fullscreen)
             window.standardWindowButton(.closeButton)?.isHidden = true

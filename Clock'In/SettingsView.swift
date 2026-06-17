@@ -32,10 +32,99 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @AppStorage("showDay") private var showDay = true
+    @AppStorage("showDate") private var showDate = true
+    @AppStorage("showTime") private var showTime = true
+    @AppStorage("use24HourFormat") private var use24HourFormat = false
+    @AppStorage("showSeconds") private var showSeconds = false
+    @AppStorage("dateFormat") private var dateFormat: String = "MDY" // "MDY" or "DMY"
+    @AppStorage("textAlignment") private var textAlignment: String = "center"
     @State private var loginItemStatus: SMAppService.Status = .notRegistered
+    
+    // Computed property to check if at least one component is visible
+    private var atLeastOneComponentVisible: Bool {
+        showDay || showDate || showTime
+    }
     
     var body: some View {
         Form {
+            Section {
+                Toggle("Show Day", isOn: $showDay)
+                    .disabled(!showDay && !atLeastOneComponentVisible)
+                    .onChange(of: showDay) { oldValue, newValue in
+                        // If trying to turn off and it's the last one, revert
+                        if !newValue && !showDate && !showTime {
+                            showDay = true
+                        }
+                    }
+                
+                Toggle("Show Date", isOn: $showDate)
+                    .disabled(!showDate && !atLeastOneComponentVisible)
+                    .onChange(of: showDate) { oldValue, newValue in
+                        // If trying to turn off and it's the last one, revert
+                        if !newValue && !showDay && !showTime {
+                            showDate = true
+                        }
+                    }
+                
+                Toggle("Show Time", isOn: $showTime)
+                    .disabled(!showTime && !atLeastOneComponentVisible)
+                    .onChange(of: showTime) { oldValue, newValue in
+                        // If trying to turn off and it's the last one, revert
+                        if !newValue && !showDay && !showDate {
+                            showTime = true
+                        }
+                    }
+                
+                if !atLeastOneComponentVisible {
+                    Text("At least one component must be visible")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Text Alignment")
+                    
+                    Picker("Text Alignment", selection: $textAlignment) {
+                        Label("Left", systemImage: "text.alignleft").tag("leading")
+                        Label("Center", systemImage: "text.aligncenter").tag("center")
+                        Label("Right", systemImage: "text.alignright").tag("trailing")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.top, 8)
+            } header: {
+                Text("Display Settings")
+            } footer: {
+                Text("At least one component must remain visible")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Section {
+                Toggle("Use 24-Hour Format", isOn: $use24HourFormat)
+                Toggle("Show Seconds", isOn: $showSeconds)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Date Format")
+                    
+                    Picker("Date Format", selection: $dateFormat) {
+                        Text("MM/DD/YYYY").tag("MDY")
+                        Text("DD/MM/YYYY").tag("DMY")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.top, 8)
+            } header: {
+                Text("Time Settings")
+            } footer: {
+                Text("Choose between 12-hour (2:30 PM) or 24-hour (14:30) format, optionally display seconds, and select your preferred date format")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { oldValue, newValue in
@@ -114,6 +203,23 @@ struct GeneralSettingsView: View {
 }
 
 struct AppearanceSettingsView: View {
+    var body: some View {
+        TabView {
+            DisplaySettingsView()
+                .tabItem {
+                    Label("Display", systemImage: "paintpalette")
+                }
+            
+            TypographySettingsView()
+                .tabItem {
+                    Label("Typography", systemImage: "textformat")
+                }
+        }
+        .tabViewStyle(.automatic)
+    }
+}
+
+struct DisplaySettingsView: View {
     // Solid color components
     @AppStorage("clockColorRed") private var red: Double = 1.0
     @AppStorage("clockColorGreen") private var green: Double = 1.0
@@ -125,27 +231,57 @@ struct AppearanceSettingsView: View {
     @AppStorage("gradientDirection") private var gradientDirection: String = "horizontal"
     @AppStorage("gradientType") private var gradientType: String = "linear"
     @AppStorage("gradientAngle") private var gradientAngle: Double = 0.0
+    @AppStorage("gradientStops") private var gradientStopsJSON: String = ""
     
-    // Gradient color positions (0.0 to 1.0)
-    @AppStorage("gradientColor1Position") private var color1Position: Double = 0.0
-    @AppStorage("gradientColor2Position") private var color2Position: Double = 1.0
+    // Display settings
+    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
     
-    // Gradient color 2 components
-    @AppStorage("gradientColor2Red") private var red2: Double = 0.5
-    @AppStorage("gradientColor2Green") private var green2: Double = 0.5
-    @AppStorage("gradientColor2Blue") private var blue2: Double = 1.0
-    @AppStorage("gradientColor2Alpha") private var alpha2: Double = 1.0
-    
-    // Font settings
-    @AppStorage("fontName") private var fontName: String = "System"
-    @AppStorage("fontWeight") private var fontWeight: String = "thin"
-    @AppStorage("fontDesign") private var fontDesign: String = "default"
-    @AppStorage("fontStyle") private var fontStyle: String = "" // For custom font styles
+    // Shadow settings
+    @AppStorage("shadowEnabled") private var shadowEnabled: Bool = true
+    @AppStorage("shadowColorRed") private var shadowRed: Double = 0.0
+    @AppStorage("shadowColorGreen") private var shadowGreen: Double = 0.0
+    @AppStorage("shadowColorBlue") private var shadowBlue: Double = 0.0
+    @AppStorage("shadowColorAlpha") private var shadowAlpha: Double = 0.3
+    @AppStorage("shadowRadius") private var shadowRadius: Double = 2.0
+    @AppStorage("shadowX") private var shadowX: Double = 0.0
+    @AppStorage("shadowY") private var shadowY: Double = 2.0
     
     @State private var clockColor: Color = .white
-    @State private var gradientColor2: Color = Color(red: 0.5, green: 0.5, blue: 1.0)
+    @State private var shadowColor: Color = Color.black.opacity(0.3)
     @State private var customAngleInput: Double = 0.0
-    @State private var availableFontStyles: [String] = []
+    @State private var gradientStops: [GradientStop] = []
+    
+    struct GradientStop: Identifiable, Codable {
+        var id = UUID()
+        var color: CodableColor
+        var position: Double
+        
+        struct CodableColor: Codable {
+            var red: Double
+            var green: Double
+            var blue: Double
+            var alpha: Double
+            
+            init(color: Color) {
+                let nsColor = NSColor(color)
+                if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
+                    self.red = Double(rgbColor.redComponent)
+                    self.green = Double(rgbColor.greenComponent)
+                    self.blue = Double(rgbColor.blueComponent)
+                    self.alpha = Double(rgbColor.alphaComponent)
+                } else {
+                    self.red = 1.0
+                    self.green = 1.0
+                    self.blue = 1.0
+                    self.alpha = 1.0
+                }
+            }
+            
+            var color: Color {
+                Color(red: red, green: green, blue: blue, opacity: alpha)
+            }
+        }
+    }
     
     enum GradientType: String, CaseIterable {
         case linear = "Linear"
@@ -213,47 +349,64 @@ struct AppearanceSettingsView: View {
     }
     
     var body: some View {
-        Form {
-            Section {
-                Toggle("Use Gradient", isOn: $useGradient)
-                
-                if useGradient {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ColorPicker("Start Color", selection: $clockColor)
-                            .onChange(of: clockColor) { oldValue, newValue in
-                                saveColor(newValue, isFirstColor: true)
+        ScrollView {
+            Form {
+                Section {
+                    Toggle("Use Gradient", isOn: $useGradient)
+                    
+                    if useGradient {
+                    // Gradient stops list
+                    ForEach(gradientStops.sorted(by: { $0.position < $1.position })) { stop in
+                        if let index = gradientStops.firstIndex(where: { $0.id == stop.id }) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    ColorPicker("Color", selection: Binding(
+                                        get: { gradientStops[index].color.color },
+                                        set: { newColor in
+                                            gradientStops[index].color = GradientStop.CodableColor(color: newColor)
+                                            saveGradientStops()
+                                        }
+                                    ))
+                                    
+                                    Spacer()
+                                    
+                                    // Delete button (only if more than 2 stops)
+                                    if gradientStops.count > 2 {
+                                        Button(action: {
+                                            gradientStops.removeAll(where: { $0.id == stop.id })
+                                            saveGradientStops()
+                                        }) {
+                                            Image(systemName: "trash")
+                                                .foregroundColor(.red)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                
+                                HStack {
+                                    Text("Position:")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Slider(value: Binding(
+                                        get: { gradientStops[index].position },
+                                        set: { newValue in
+                                            gradientStops[index].position = newValue
+                                            saveGradientStops()
+                                        }
+                                    ), in: 0...1, step: 0.01)
+                                    Text("\(Int(gradientStops[index].position * 100))%")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 40, alignment: .trailing)
+                                }
+                                .padding(.leading, 20)
                             }
-                        
-                        HStack {
-                            Text("Position:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Slider(value: $color1Position, in: 0...1, step: 0.01)
-                            Text("\(Int(color1Position * 100))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 40, alignment: .trailing)
                         }
-                        .padding(.leading, 20)
                     }
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        ColorPicker("End Color", selection: $gradientColor2)
-                            .onChange(of: gradientColor2) { oldValue, newValue in
-                                saveColor(newValue, isFirstColor: false)
-                            }
-                        
-                        HStack {
-                            Text("Position:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Slider(value: $color2Position, in: 0...1, step: 0.01)
-                            Text("\(Int(color2Position * 100))%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 40, alignment: .trailing)
-                        }
-                        .padding(.leading, 20)
+                    // Add gradient stop button
+                    Button(action: addGradientStop) {
+                        Label("Add Color Stop", systemImage: "plus.circle")
                     }
                     
                     Picker("Type", selection: $gradientType) {
@@ -294,7 +447,7 @@ struct AppearanceSettingsView: View {
                                         .frame(width: 15, alignment: .leading)
                                 }
                                 
-                                Slider(value: $customAngleInput, in: -180...180, step: 1)
+                                Slider(value: $customAngleInput, in: -250...250, step: 1)
                                     .labelsHidden()
                                 
                                 HStack {
@@ -337,19 +490,17 @@ struct AppearanceSettingsView: View {
                                     .fill(
                                         selectedType == .radial ?
                                             AnyShapeStyle(RadialGradient(
-                                                stops: [
-                                                    .init(color: clockColor, location: color1Position),
-                                                    .init(color: gradientColor2, location: color2Position)
-                                                ],
+                                                stops: gradientStops.sorted(by: { $0.position < $1.position }).map {
+                                                    .init(color: $0.color.color, location: $0.position)
+                                                },
                                                 center: .center,
                                                 startRadius: 0,
                                                 endRadius: 100
                                             )) :
                                             AnyShapeStyle(LinearGradient(
-                                                stops: [
-                                                    .init(color: clockColor, location: color1Position),
-                                                    .init(color: gradientColor2, location: color2Position)
-                                                ],
+                                                stops: gradientStops.sorted(by: { $0.position < $1.position }).map {
+                                                    .init(color: $0.color.color, location: $0.position)
+                                                },
                                                 startPoint: pointsForAngle(previewAngle).0,
                                                 endPoint: pointsForAngle(previewAngle).1
                                             ))
@@ -370,23 +521,16 @@ struct AppearanceSettingsView: View {
                                     .stroke(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                                     
                                     // Show color stop indicators
-                                    Circle()
-                                        .fill(clockColor)
-                                        .frame(width: 12, height: 12)
-                                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                                        .position(
-                                            x: startX + (endX - startX) * color1Position,
-                                            y: startY + (endY - startY) * color1Position
-                                        )
-                                    
-                                    Circle()
-                                        .fill(gradientColor2)
-                                        .frame(width: 12, height: 12)
-                                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                                        .position(
-                                            x: startX + (endX - startX) * color2Position,
-                                            y: startY + (endY - startY) * color2Position
-                                        )
+                                    ForEach(gradientStops) { stop in
+                                        Circle()
+                                            .fill(stop.color.color)
+                                            .frame(width: 12, height: 12)
+                                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                            .position(
+                                                x: startX + (endX - startX) * stop.position,
+                                                y: startY + (endY - startY) * stop.position
+                                            )
+                                    }
                                 }
                             }
                         }
@@ -395,106 +539,430 @@ struct AppearanceSettingsView: View {
                 } else {
                     ColorPicker("Clock Color", selection: $clockColor)
                         .onChange(of: clockColor) { oldValue, newValue in
-                            saveColor(newValue, isFirstColor: true)
+                            saveColor(newValue)
                         }
+                }
+                
+                // Opacity control
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Transparency")
+                        Spacer()
+                        Text("\(Int(clockOpacity * 100))%")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                    
+                    Slider(value: $clockOpacity, in: 0.1...1.0, step: 0.05)
+                    
+                    HStack {
+                        Text("10%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("100%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Button("Reset to Default") {
                     clockColor = .white
-                    gradientColor2 = Color(red: 0.5, green: 0.5, blue: 1.0)
                     useGradient = false
                     gradientDirection = "horizontal"
                     gradientType = "linear"
                     gradientAngle = 0.0
-                    color1Position = 0.0
-                    color2Position = 1.0
-                    fontName = "System"
-                    fontWeight = "thin"
-                    fontDesign = "default"
-                    saveColor(.white, isFirstColor: true)
-                    saveColor(Color(red: 0.5, green: 0.5, blue: 1.0), isFirstColor: false)
-                }
-            } header: {
-                Text("Display")
-            }
-            
-            Section {
-                Picker("Font", selection: $fontName) {
-                    Text("System Default").tag("System")
+                    clockOpacity = 1.0
                     
-                    Divider()
-                    
-                    ForEach(NSFontManager.shared.availableFontFamilies.sorted(), id: \.self) { font in
-                        Text(font)
-                            .font(.custom(font, size: 13))
-                            .tag(font)
-                    }
+                    // Reset gradient stops to default
+                    gradientStops = [
+                        GradientStop(color: GradientStop.CodableColor(color: .white), position: 0.0),
+                        GradientStop(color: GradientStop.CodableColor(color: Color(red: 0.5, green: 0.5, blue: 1.0)), position: 1.0)
+                    ]
+                    saveGradientStops()
+                    saveColor(.white)
                 }
-                .pickerStyle(.menu)
-                .onChange(of: fontName) { oldValue, newValue in
-                    // Update available font styles when font changes
-                    updateAvailableFontStyles()
-                    // Reset font style when changing fonts
-                    if !availableFontStyles.isEmpty {
-                        fontStyle = availableFontStyles[0]
-                    } else {
-                        fontStyle = ""
-                    }
+                } header: {
+                    Text("Color")
                 }
                 
-                if fontName == "System" {
-                    Picker("Weight", selection: $fontWeight) {
-                        Text("Ultralight").tag("ultralight")
-                        Text("Thin").tag("thin")
-                        Text("Light").tag("light")
-                        Text("Regular").tag("regular")
-                        Text("Medium").tag("medium")
-                        Text("Semibold").tag("semibold")
-                        Text("Bold").tag("bold")
-                        Text("Heavy").tag("heavy")
-                        Text("Black").tag("black")
-                    }
-                    .pickerStyle(.menu)
+                Section {
+                    Toggle("Enable Shadow", isOn: $shadowEnabled)
                     
-                    Picker("Design", selection: $fontDesign) {
-                        Text("Default").tag("default")
-                        Text("Serif").tag("serif")
-                        Text("Rounded").tag("rounded")
-                        Text("Monospaced").tag("monospaced")
+                    if shadowEnabled {
+                        ColorPicker("Shadow Color", selection: $shadowColor)
+                            .onChange(of: shadowColor) { oldValue, newValue in
+                                saveShadowColor(newValue)
+                            }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Shadow Blur Radius")
+                                Spacer()
+                                Text("\(Int(shadowRadius))px")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $shadowRadius, in: 0...20, step: 1)
+                            
+                            HStack {
+                                Text("0px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("20px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Shadow Offset X")
+                                Spacer()
+                                Text("\(Int(shadowX))px")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $shadowX, in: -250...250, step: 1)
+                            
+                            HStack {
+                                Text("-100px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("100px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Shadow Offset Y")
+                                Spacer()
+                                Text("\(Int(shadowY))px")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $shadowY, in: -100...100, step: 1)
+                            
+                            HStack {
+                                Text("-100px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("100px")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
-                    .pickerStyle(.menu)
-                } else if !availableFontStyles.isEmpty {
-                    Picker("Style", selection: $fontStyle) {
-                        ForEach(availableFontStyles, id: \.self) { style in
-                            Text(style).tag(style)
+                    
+                    Button("Reset Effects to Default") {
+                        shadowEnabled = true
+                        shadowColor = Color.black.opacity(0.3)
+                        saveShadowColor(shadowColor)
+                        shadowRadius = 2.0
+                        shadowX = 0.0
+                        shadowY = 2.0
+                    }
+                } header: {
+                    Text("Effect Settings")
+                } footer: {
+                    Text("Customize shadow effects for better text visibility")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            .padding()
+            .onAppear {
+                loadColors()
+                loadGradientStops()
+                loadShadowColor()
+            }
+            .onChange(of: gradientStopsJSON) { _, _ in
+                loadGradientStops()
+            }
+        }
+    }
+    
+    private func saveShadowColor(_ color: Color) {
+        let nsColor = NSColor(color)
+        if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
+            shadowRed = Double(rgbColor.redComponent)
+            shadowGreen = Double(rgbColor.greenComponent)
+            shadowBlue = Double(rgbColor.blueComponent)
+            shadowAlpha = Double(rgbColor.alphaComponent)
+        }
+    }
+    
+    private func loadShadowColor() {
+        shadowColor = Color(red: shadowRed, green: shadowGreen, blue: shadowBlue, opacity: shadowAlpha)
+    }
+    
+    private func saveColor(_ color: Color) {
+        // Convert SwiftUI Color to NSColor and extract components
+        let nsColor = NSColor(color)
+        if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
+            red = Double(rgbColor.redComponent)
+            green = Double(rgbColor.greenComponent)
+            blue = Double(rgbColor.blueComponent)
+            alpha = Double(rgbColor.alphaComponent)
+        }
+    }
+    
+    private func loadColors() {
+        // Load colors from stored components
+        clockColor = Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+    
+    private func loadGradientStops() {
+        if !gradientStopsJSON.isEmpty,
+           let data = gradientStopsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([GradientStop].self, from: data) {
+            gradientStops = decoded
+        } else {
+            // Default gradient stops
+            gradientStops = [
+                GradientStop(color: GradientStop.CodableColor(color: .white), position: 0.0),
+                GradientStop(color: GradientStop.CodableColor(color: Color(red: 0.5, green: 0.5, blue: 1.0)), position: 1.0)
+            ]
+        }
+    }
+    
+    private func saveGradientStops() {
+        if let encoded = try? JSONEncoder().encode(gradientStops),
+           let json = String(data: encoded, encoding: .utf8) {
+            gradientStopsJSON = json
+        }
+    }
+    
+    private func addGradientStop() {
+        // Find a good position for the new stop (midpoint between existing stops)
+        let sortedStops = gradientStops.sorted(by: { $0.position < $1.position })
+        var newPosition = 0.5
+        
+        // Find the largest gap and place the new stop there
+        if sortedStops.count >= 2 {
+            var maxGap = 0.0
+            var gapPosition = 0.5
+            
+            for i in 0..<(sortedStops.count - 1) {
+                let gap = sortedStops[i + 1].position - sortedStops[i].position
+                if gap > maxGap {
+                    maxGap = gap
+                    gapPosition = (sortedStops[i].position + sortedStops[i + 1].position) / 2
+                }
+            }
+            newPosition = gapPosition
+        }
+        
+        // Create new stop with interpolated color
+        let newStop = GradientStop(
+            color: GradientStop.CodableColor(color: .gray),
+            position: newPosition
+        )
+        
+        gradientStops.append(newStop)
+        saveGradientStops()
+    }
+}
+
+struct TypographySettingsView: View {
+    // Font settings
+    @AppStorage("fontName") private var fontName: String = "System"
+    @AppStorage("fontWeight") private var fontWeight: String = "thin"
+    @AppStorage("fontDesign") private var fontDesign: String = "default"
+    @AppStorage("fontStyle") private var fontStyle: String = "" // For custom font styles
+    
+    // Font size settings
+    @AppStorage("dayFontSize") private var dayFontSize: Double = 100
+    @AppStorage("dateFontSize") private var dateFontSize: Double = 40
+    @AppStorage("timeFontSize") private var timeFontSize: Double = 90
+    
+    @State private var availableFontStyles: [String] = []
+    
+    var body: some View {
+        ScrollView {
+            Form {
+                Section {
+                    Picker("Font", selection: $fontName) {
+                        Text("System Default").tag("System")
+                        
+                        Divider()
+                        
+                        ForEach(NSFontManager.shared.availableFontFamilies.sorted(), id: \.self) { font in
+                            Text(font)
+                                .font(.custom(font, size: 13))
+                                .tag(font)
                         }
                     }
                     .pickerStyle(.menu)
+                    .onChange(of: fontName) { oldValue, newValue in
+                        // Update available font styles when font changes
+                        updateAvailableFontStyles()
+                        // Reset font style when changing fonts
+                        if !availableFontStyles.isEmpty {
+                            fontStyle = availableFontStyles[0]
+                        } else {
+                            fontStyle = ""
+                        }
+                    }
+                    
+                    if fontName == "System" {
+                        Picker("Weight", selection: $fontWeight) {
+                            Text("Ultralight").tag("ultralight")
+                            Text("Thin").tag("thin")
+                            Text("Light").tag("light")
+                            Text("Regular").tag("regular")
+                            Text("Medium").tag("medium")
+                            Text("Semibold").tag("semibold")
+                            Text("Bold").tag("bold")
+                            Text("Heavy").tag("heavy")
+                            Text("Black").tag("black")
+                        }
+                        .pickerStyle(.menu)
+                        
+                        Picker("Design", selection: $fontDesign) {
+                            Text("Default").tag("default")
+                            Text("Serif").tag("serif")
+                            Text("Rounded").tag("rounded")
+                            Text("Monospaced").tag("monospaced")
+                        }
+                        .pickerStyle(.menu)
+                    } else if !availableFontStyles.isEmpty {
+                        Picker("Style", selection: $fontStyle) {
+                            ForEach(availableFontStyles, id: \.self) { style in
+                                Text(style).tag(style)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    
+                    // Font preview
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preview:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("12:34")
+                            .font(previewFont(size: 40))
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.black.opacity(0.8))
+                            .foregroundStyle(.white)
+                            .cornerRadius(8)
+                    }
+                    
+                    Button("Reset to Default") {
+                        fontName = "System"
+                        fontWeight = "thin"
+                        fontDesign = "default"
+                        fontStyle = ""
+                    }
+                } header: {
+                    Text("Font Settings")
                 }
                 
-                // Font preview
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Preview:")
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Day font size
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Day Font Size")
+                                Spacer()
+                                Text("\(Int(dayFontSize))pt")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $dayFontSize, in: 20...200, step: 5)
+                            
+                            HStack {
+                                Text("20pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("200pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Date font size
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Date Font Size")
+                                Spacer()
+                                Text("\(Int(dateFontSize))pt")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $dateFontSize, in: 15...150, step: 5)
+                            
+                            HStack {
+                                Text("15pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("150pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Time font size
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Time Font Size")
+                                Spacer()
+                                Text("\(Int(timeFontSize))pt")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            
+                            Slider(value: $timeFontSize, in: 20...200, step: 5)
+                            
+                            HStack {
+                                Text("20pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("200pt")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    
+                    Button("Reset Sizes to Default") {
+                        dayFontSize = 100
+                        dateFontSize = 40
+                        timeFontSize = 90
+                    }
+                } header: {
+                    Text("Font Sizes")
+                } footer: {
+                    Text("Adjust the font size for each component independently")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
-                    Text("12:34")
-                        .font(previewFont(size: 40))
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.black.opacity(0.8))
-                        .foregroundStyle(.white)
-                        .cornerRadius(8)
                 }
-            } header: {
-                Text("Typography")
             }
-        }
-        .formStyle(.grouped)
-        .padding()
-        .onAppear {
-            loadColors()
-            updateAvailableFontStyles()
+            .formStyle(.grouped)
+            .padding()
+            .onAppear {
+                updateAvailableFontStyles()
+            }
         }
     }
     
@@ -560,30 +1028,6 @@ struct AppearanceSettingsView: View {
         case "monospaced": return .monospaced
         default: return .default
         }
-    }
-    
-    private func saveColor(_ color: Color, isFirstColor: Bool) {
-        // Convert SwiftUI Color to NSColor and extract components
-        let nsColor = NSColor(color)
-        if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
-            if isFirstColor {
-                red = Double(rgbColor.redComponent)
-                green = Double(rgbColor.greenComponent)
-                blue = Double(rgbColor.blueComponent)
-                alpha = Double(rgbColor.alphaComponent)
-            } else {
-                red2 = Double(rgbColor.redComponent)
-                green2 = Double(rgbColor.greenComponent)
-                blue2 = Double(rgbColor.blueComponent)
-                alpha2 = Double(rgbColor.alphaComponent)
-            }
-        }
-    }
-    
-    private func loadColors() {
-        // Load colors from stored components
-        clockColor = Color(red: red, green: green, blue: blue, opacity: alpha)
-        gradientColor2 = Color(red: red2, green: green2, blue: blue2, opacity: alpha2)
     }
 }
 

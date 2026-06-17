@@ -13,6 +13,9 @@ struct ContentView: View {
     @State private var isRepositionMode = false
     @State private var dragOffset: CGSize = .zero
     @State private var windowSize: CGSize = .zero
+    @State private var showLockButton = false
+    @State private var lockButtonTimer: Timer?
+    @State private var repositionModeTimer: Timer?
     @Environment(\.openWindow) private var openWindow
     
     // Solid color components
@@ -33,6 +36,33 @@ struct ContentView: View {
     @AppStorage("fontWeight") private var fontWeight: String = "thin"
     @AppStorage("fontDesign") private var fontDesign: String = "default"
     @AppStorage("fontStyle") private var fontStyle: String = "" // For custom font styles
+    
+    // Font size settings
+    @AppStorage("dayFontSize") private var dayFontSize: Double = 100
+    @AppStorage("dateFontSize") private var dateFontSize: Double = 40
+    @AppStorage("timeFontSize") private var timeFontSize: Double = 90
+    
+    // Opacity setting
+    @AppStorage("clockOpacity") private var clockOpacity: Double = 1.0
+    
+    // Display toggles
+    @AppStorage("showDay") private var showDay = true
+    @AppStorage("showDate") private var showDate = true
+    @AppStorage("showTime") private var showTime = true
+    @AppStorage("use24HourFormat") private var use24HourFormat = false
+    @AppStorage("showSeconds") private var showSeconds = false
+    @AppStorage("dateFormat") private var dateFormat: String = "MDY"
+    @AppStorage("textAlignment") private var textAlignment: String = "center"
+    
+    // Shadow settings
+    @AppStorage("shadowEnabled") private var shadowEnabled: Bool = true
+    @AppStorage("shadowColorRed") private var shadowRed: Double = 0.0
+    @AppStorage("shadowColorGreen") private var shadowGreen: Double = 0.0
+    @AppStorage("shadowColorBlue") private var shadowBlue: Double = 0.0
+    @AppStorage("shadowColorAlpha") private var shadowAlpha: Double = 0.3
+    @AppStorage("shadowRadius") private var shadowRadius: Double = 2.0
+    @AppStorage("shadowX") private var shadowX: Double = 0.0
+    @AppStorage("shadowY") private var shadowY: Double = 2.0
     
     @State private var gradientStops: [GradientStop] = []
     
@@ -55,11 +85,51 @@ struct ContentView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var clockColor: Color {
-        // Use first gradient stop color, or default
-        if !gradientStops.isEmpty {
+        // Use solid color settings when not using gradient
+        if useGradient && !gradientStops.isEmpty {
             return gradientStops[0].color.color
         }
         return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+    
+    var formattedTime: String {
+        let formatter = DateFormatter()
+        
+        if use24HourFormat {
+            // 24-hour format
+            formatter.dateFormat = showSeconds ? "HH:mm:ss" : "HH:mm"
+        } else {
+            // 12-hour format with AM/PM
+            formatter.dateFormat = showSeconds ? "h:mm:ss a" : "h:mm a"
+        }
+        
+        return formatter.string(from: currentTime)
+    }
+    
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        
+        if dateFormat == "DMY" {
+            // DD/MM/YYYY format (e.g., "17/06/2026")
+            formatter.dateFormat = "dd/MM/yyyy"
+        } else {
+            // MM/DD/YYYY format (e.g., "06/17/2026")
+            formatter.dateFormat = "MM/dd/yyyy"
+        }
+        
+        return formatter.string(from: currentTime)
+    }
+    
+    var horizontalAlignment: HorizontalAlignment {
+        switch textAlignment {
+        case "leading": return .leading
+        case "trailing": return .trailing
+        default: return .center
+        }
+    }
+    
+    var shadowColor: Color {
+        Color(red: shadowRed, green: shadowGreen, blue: shadowBlue, opacity: shadowAlpha)
     }
     
     enum GradientDirection: String {
@@ -165,36 +235,46 @@ struct ContentView: View {
                 Color.clear
                 
                 // Main clock display
-                VStack(spacing: scaledValue(20, for: geometry.size)) {
+                VStack(alignment: horizontalAlignment, spacing: 20) {
                     // Day of the week
-                    Text(currentTime.formatted(.dateTime.weekday(.wide)))
-                        .font(clockFont(size: scaledValue(100, for: geometry.size)))
-                        .foregroundStyle(gradientStyle())
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
-                        .textCase(.uppercase)
-                        .kerning(scaledValue(30, for: geometry.size))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.3)
+                    if showDay {
+                        Text(currentTime.formatted(.dateTime.weekday(.wide)))
+                            .font(clockFont(size: dayFontSize))
+                            .foregroundStyle(gradientStyle())
+                            .if(shadowEnabled) { view in
+                                view.shadow(color: shadowColor, radius: shadowRadius, x: shadowX, y: shadowY)
+                            }
+                            .textCase(.uppercase)
+                            .kerning(dayFontSize * 0.3)
+                            .lineLimit(1)
+                    }
                     
                     // Date
-                    Text(currentTime.formatted(date: .long, time: .omitted))
-                        .font(clockFont(size: scaledValue(40, for: geometry.size)))
-                        .foregroundStyle(gradientStyle(opacity: 0.9))
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .kerning(scaledValue(10, for: geometry.size))
-                        .minimumScaleFactor(0.5)
+                    if showDate {
+                        Text(formattedDate)
+                            .font(clockFont(size: dateFontSize))
+                            .foregroundStyle(gradientStyle(opacity: 0.9))
+                            .if(shadowEnabled) { view in
+                                view.shadow(color: shadowColor, radius: shadowRadius, x: shadowX, y: shadowY)
+                            }
+                            .kerning(dateFontSize * 0.25)
+                            .lineLimit(1)
+                    }
                     
                     // Current time
-                    Text(currentTime.formatted(date: .omitted, time: .shortened))
-                        .font(clockFont(size: scaledValue(90, for: geometry.size)))
-                        .foregroundStyle(gradientStyle())
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .minimumScaleFactor(0.5)
+                    if showTime {
+                        Text(formattedTime)
+                            .font(clockFont(size: timeFontSize))
+                            .foregroundStyle(gradientStyle())
+                            .if(shadowEnabled) { view in
+                                view.shadow(color: shadowColor, radius: shadowRadius, x: shadowX, y: shadowY)
+                            }
+                            .lineLimit(1)
+                    }
                 
                 }
-                .padding(scaledValue(30, for: geometry.size))
+                .opacity(clockOpacity)
+                .padding(30)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
                     isRepositionMode ? 
@@ -209,9 +289,16 @@ struct ContentView: View {
                         : nil
                 )
                 
-                // Reposition mode toggle button (always visible)
+                // Reposition mode toggle button (visible in reposition mode)
                 RepositionButton(isRepositionMode: $isRepositionMode)
                     .padding(8)
+                    .opacity(showLockButton ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.3), value: showLockButton)
+                    .onHover { hovering in
+                        if isRepositionMode && hovering {
+                            resetLockButtonTimer()
+                        }
+                    }
             }
             .onAppear {
                 windowSize = geometry.size
@@ -231,6 +318,7 @@ struct ContentView: View {
             DragGesture()
                 .onChanged { value in
                     if isRepositionMode {
+                        resetLockButtonTimer()
                         dragOffset = value.translation
                         if let window = getCurrentWindow() {
                             let currentOrigin = window.frame.origin
@@ -252,6 +340,14 @@ struct ContentView: View {
             // Triple-tap to toggle reposition mode
             isRepositionMode.toggle()
             updateWindowResizability()
+            if isRepositionMode {
+                resetLockButtonTimer()
+            }
+        }
+        .onHover { hovering in
+            if isRepositionMode && hovering {
+                resetLockButtonTimer()
+            }
         }
         .onAppear {
             updateWindowResizability()
@@ -271,6 +367,14 @@ struct ContentView: View {
         }
         .onChange(of: isRepositionMode) { oldValue, newValue in
             updateWindowResizability()
+            if !newValue {
+                // When exiting reposition mode, hide button and cancel timers
+                showLockButton = false
+                lockButtonTimer?.invalidate()
+                lockButtonTimer = nil
+                repositionModeTimer?.invalidate()
+                repositionModeTimer = nil
+            }
         }
         .onChange(of: gradientStopsJSON) { _, _ in
             loadGradientStops()
@@ -380,6 +484,29 @@ struct ContentView: View {
             saveWindowPosition()
         }
     }
+    
+    private func resetLockButtonTimer() {
+        // Show the button
+        showLockButton = true
+        
+        // Cancel existing timers
+        lockButtonTimer?.invalidate()
+        repositionModeTimer?.invalidate()
+        
+        // Create new timer to hide button after 5 seconds
+        lockButtonTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { _ in
+            withAnimation {
+                showLockButton = false
+            }
+        }
+        
+        // Create new timer to exit reposition mode after 5 seconds
+        repositionModeTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [self] _ in
+            withAnimation {
+                isRepositionMode = false
+            }
+        }
+    }
 }
 
 struct RepositionButton: View {
@@ -398,10 +525,21 @@ struct RepositionButton: View {
         }
         .buttonStyle(.plain)
         .help(isRepositionMode ? "Lock position" : "Unlock to reposition")
-        .opacity(isRepositionMode ? 1 : 0)
     }
 }
 
 #Preview {
     ContentView()
 }
+// Helper extension for conditional view modification
+extension View {
+    @ViewBuilder
+    func `if`<Transform: View>(_ condition: Bool, transform: (Self) -> Transform) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
+}
+
