@@ -28,6 +28,12 @@ struct ContentView: View {
     @AppStorage("gradientAngle") private var gradientAngle: Double = 0.0
     @AppStorage("gradientStops") private var gradientStopsJSON: String = ""
     
+    // Font settings
+    @AppStorage("fontName") private var fontName: String = "System"
+    @AppStorage("fontWeight") private var fontWeight: String = "thin"
+    @AppStorage("fontDesign") private var fontDesign: String = "default"
+    @AppStorage("fontStyle") private var fontStyle: String = "" // For custom font styles
+    
     @State private var gradientStops: [GradientStop] = []
     
     struct GradientStop: Codable {
@@ -162,7 +168,7 @@ struct ContentView: View {
                 VStack(spacing: scaledValue(20, for: geometry.size)) {
                     // Day of the week
                     Text(currentTime.formatted(.dateTime.weekday(.wide)))
-                        .font(.system(size: scaledValue(100, for: geometry.size), weight: .thin, design: .default))
+                        .font(clockFont(size: scaledValue(100, for: geometry.size)))
                         .foregroundStyle(gradientStyle())
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .textCase(.uppercase)
@@ -172,7 +178,7 @@ struct ContentView: View {
                     
                     // Date
                     Text(currentTime.formatted(date: .long, time: .omitted))
-                        .font(.system(size: scaledValue(40, for: geometry.size), weight: .thin, design: .default))
+                        .font(clockFont(size: scaledValue(40, for: geometry.size)))
                         .foregroundStyle(gradientStyle(opacity: 0.9))
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -181,7 +187,7 @@ struct ContentView: View {
                     
                     // Current time
                     Text(currentTime.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: scaledValue(90, for: geometry.size), weight: .thin, design: .default))
+                        .font(clockFont(size: scaledValue(90, for: geometry.size)))
                         .foregroundStyle(gradientStyle())
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -282,6 +288,46 @@ struct ContentView: View {
                 GradientStop(color: GradientStop.CodableColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0), position: 0.0),
                 GradientStop(color: GradientStop.CodableColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1.0), position: 1.0)
             ]
+        }
+    }
+    
+    private func clockFont(size: CGFloat) -> Font {
+        if fontName == "System" {
+            return .system(size: size, weight: fontWeightValue, design: fontDesignValue)
+        } else {
+            // For custom fonts, we need to get the full PostScript name
+            if !fontStyle.isEmpty,
+               let members = NSFontManager.shared.availableMembers(ofFontFamily: fontName),
+               let member = members.first(where: { ($0[1] as? String) == fontStyle }),
+               let postScriptName = member[0] as? String {
+                return .custom(postScriptName, size: size)
+            }
+            // Fallback to just the family name
+            return .custom(fontName, size: size)
+        }
+    }
+    
+    private var fontWeightValue: Font.Weight {
+        switch fontWeight {
+        case "ultralight": return .ultraLight
+        case "thin": return .thin
+        case "light": return .light
+        case "regular": return .regular
+        case "medium": return .medium
+        case "semibold": return .semibold
+        case "bold": return .bold
+        case "heavy": return .heavy
+        case "black": return .black
+        default: return .thin
+        }
+    }
+    
+    private var fontDesignValue: Font.Design {
+        switch fontDesign {
+        case "serif": return .serif
+        case "rounded": return .rounded
+        case "monospaced": return .monospaced
+        default: return .default
         }
     }
     

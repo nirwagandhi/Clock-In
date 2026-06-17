@@ -126,50 +126,26 @@ struct AppearanceSettingsView: View {
     @AppStorage("gradientType") private var gradientType: String = "linear"
     @AppStorage("gradientAngle") private var gradientAngle: Double = 0.0
     
-    // Store gradient stops as JSON
-    @AppStorage("gradientStops") private var gradientStopsJSON: String = ""
+    // Gradient color positions (0.0 to 1.0)
+    @AppStorage("gradientColor1Position") private var color1Position: Double = 0.0
+    @AppStorage("gradientColor2Position") private var color2Position: Double = 1.0
     
+    // Gradient color 2 components
+    @AppStorage("gradientColor2Red") private var red2: Double = 0.5
+    @AppStorage("gradientColor2Green") private var green2: Double = 0.5
+    @AppStorage("gradientColor2Blue") private var blue2: Double = 1.0
+    @AppStorage("gradientColor2Alpha") private var alpha2: Double = 1.0
+    
+    // Font settings
+    @AppStorage("fontName") private var fontName: String = "System"
+    @AppStorage("fontWeight") private var fontWeight: String = "thin"
+    @AppStorage("fontDesign") private var fontDesign: String = "default"
+    @AppStorage("fontStyle") private var fontStyle: String = "" // For custom font styles
+    
+    @State private var clockColor: Color = .white
+    @State private var gradientColor2: Color = Color(red: 0.5, green: 0.5, blue: 1.0)
     @State private var customAngleInput: Double = 0.0
-    @State private var gradientStops: [GradientStop] = []
-    
-    struct GradientStop: Identifiable, Codable, Equatable {
-        var id = UUID()
-        var color: CodableColor
-        var position: Double
-        
-        struct CodableColor: Codable, Equatable {
-            var red: Double
-            var green: Double
-            var blue: Double
-            var alpha: Double
-            
-            var color: Color {
-                Color(red: red, green: green, blue: blue, opacity: alpha)
-            }
-            
-            init(color: Color) {
-                let nsColor = NSColor(color)
-                if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
-                    self.red = Double(rgbColor.redComponent)
-                    self.green = Double(rgbColor.greenComponent)
-                    self.blue = Double(rgbColor.blueComponent)
-                    self.alpha = Double(rgbColor.alphaComponent)
-                } else {
-                    self.red = 1.0
-                    self.green = 1.0
-                    self.blue = 1.0
-                    self.alpha = 1.0
-                }
-            }
-            
-            init(red: Double, green: Double, blue: Double, alpha: Double) {
-                self.red = red
-                self.green = green
-                self.blue = blue
-                self.alpha = alpha
-            }
-        }
-    }
+    @State private var availableFontStyles: [String] = []
     
     enum GradientType: String, CaseIterable {
         case linear = "Linear"
@@ -242,58 +218,42 @@ struct AppearanceSettingsView: View {
                 Toggle("Use Gradient", isOn: $useGradient)
                 
                 if useGradient {
-                    // Gradient stops editor
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Color Stops:")
-                                .font(.headline)
-                            Spacer()
-                            Button(action: addGradientStop) {
-                                Label("Add Color", systemImage: "plus.circle.fill")
+                    VStack(alignment: .leading, spacing: 4) {
+                        ColorPicker("Start Color", selection: $clockColor)
+                            .onChange(of: clockColor) { oldValue, newValue in
+                                saveColor(newValue, isFirstColor: true)
                             }
-                            .disabled(gradientStops.count >= 10)
-                        }
                         
-                        ForEach($gradientStops) { $stop in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    ColorPicker("", selection: Binding(
-                                        get: { stop.color.color },
-                                        set: { newColor in
-                                            stop.color = GradientStop.CodableColor(color: newColor)
-                                            saveGradientStops()
-                                        }
-                                    ))
-                                    .labelsHidden()
-                                    .frame(width: 50)
-                                    
-                                    Text("Position:")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    
-                                    Slider(value: $stop.position, in: 0...1, step: 0.01)
-                                        .onChange(of: stop.position) { _, _ in
-                                            saveGradientStops()
-                                        }
-                                    
-                                    Text("\(Int(stop.position * 100))%")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 40, alignment: .trailing)
-                                    
-                                    if gradientStops.count > 2 {
-                                        Button(action: {
-                                            removeGradientStop(stop)
-                                        }) {
-                                            Image(systemName: "minus.circle.fill")
-                                                .foregroundStyle(.red)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 4)
+                        HStack {
+                            Text("Position:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $color1Position, in: 0...1, step: 0.01)
+                            Text("\(Int(color1Position * 100))%")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, alignment: .trailing)
                         }
+                        .padding(.leading, 20)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        ColorPicker("End Color", selection: $gradientColor2)
+                            .onChange(of: gradientColor2) { oldValue, newValue in
+                                saveColor(newValue, isFirstColor: false)
+                            }
+                        
+                        HStack {
+                            Text("Position:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Slider(value: $color2Position, in: 0...1, step: 0.01)
+                            Text("\(Int(color2Position * 100))%")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                        .padding(.leading, 20)
                     }
                     
                     Picker("Type", selection: $gradientType) {
@@ -371,20 +331,25 @@ struct AppearanceSettingsView: View {
                             ZStack {
                                 // Use the preview angle (customAngleInput for custom, gradientAngle for presets)
                                 let previewAngle = selectedPreset == .custom ? customAngleInput : gradientAngle
-                                let sortedStops = gradientStops.sorted { $0.position < $1.position }
                                 
                                 // Gradient background
                                 RoundedRectangle(cornerRadius: 8)
                                     .fill(
                                         selectedType == .radial ?
                                             AnyShapeStyle(RadialGradient(
-                                                stops: sortedStops.map { Gradient.Stop(color: $0.color.color, location: $0.position) },
+                                                stops: [
+                                                    .init(color: clockColor, location: color1Position),
+                                                    .init(color: gradientColor2, location: color2Position)
+                                                ],
                                                 center: .center,
                                                 startRadius: 0,
                                                 endRadius: 100
                                             )) :
                                             AnyShapeStyle(LinearGradient(
-                                                stops: sortedStops.map { Gradient.Stop(color: $0.color.color, location: $0.position) },
+                                                stops: [
+                                                    .init(color: clockColor, location: color1Position),
+                                                    .init(color: gradientColor2, location: color2Position)
+                                                ],
                                                 startPoint: pointsForAngle(previewAngle).0,
                                                 endPoint: pointsForAngle(previewAngle).1
                                             ))
@@ -405,106 +370,220 @@ struct AppearanceSettingsView: View {
                                     .stroke(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
                                     
                                     // Show color stop indicators
-                                    ForEach(gradientStops) { stop in
-                                        Circle()
-                                            .fill(stop.color.color)
-                                            .frame(width: 12, height: 12)
-                                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                                            .position(
-                                                x: startX + (endX - startX) * stop.position,
-                                                y: startY + (endY - startY) * stop.position
-                                            )
-                                    }
+                                    Circle()
+                                        .fill(clockColor)
+                                        .frame(width: 12, height: 12)
+                                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                        .position(
+                                            x: startX + (endX - startX) * color1Position,
+                                            y: startY + (endY - startY) * color1Position
+                                        )
+                                    
+                                    Circle()
+                                        .fill(gradientColor2)
+                                        .frame(width: 12, height: 12)
+                                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                        .position(
+                                            x: startX + (endX - startX) * color2Position,
+                                            y: startY + (endY - startY) * color2Position
+                                        )
                                 }
                             }
                         }
                         .frame(height: 80)
                     }
                 } else {
-                    ColorPicker("Clock Color", selection: Binding(
-                        get: {
-                            if gradientStops.isEmpty {
-                                return .white
-                            }
-                            return gradientStops[0].color.color
-                        },
-                        set: { newColor in
-                            if gradientStops.isEmpty {
-                                gradientStops = [GradientStop(color: GradientStop.CodableColor(color: newColor), position: 0.0)]
-                            } else {
-                                gradientStops[0].color = GradientStop.CodableColor(color: newColor)
-                            }
-                            saveGradientStops()
+                    ColorPicker("Clock Color", selection: $clockColor)
+                        .onChange(of: clockColor) { oldValue, newValue in
+                            saveColor(newValue, isFirstColor: true)
                         }
-                    ))
                 }
                 
                 Button("Reset to Default") {
-                    gradientStops = [
-                        GradientStop(color: GradientStop.CodableColor(color: .white), position: 0.0),
-                        GradientStop(color: GradientStop.CodableColor(color: Color(red: 0.5, green: 0.5, blue: 1.0)), position: 1.0)
-                    ]
+                    clockColor = .white
+                    gradientColor2 = Color(red: 0.5, green: 0.5, blue: 1.0)
                     useGradient = false
                     gradientDirection = "horizontal"
                     gradientType = "linear"
                     gradientAngle = 0.0
-                    saveGradientStops()
+                    color1Position = 0.0
+                    color2Position = 1.0
+                    fontName = "System"
+                    fontWeight = "thin"
+                    fontDesign = "default"
+                    saveColor(.white, isFirstColor: true)
+                    saveColor(Color(red: 0.5, green: 0.5, blue: 1.0), isFirstColor: false)
                 }
             } header: {
                 Text("Display")
+            }
+            
+            Section {
+                Picker("Font", selection: $fontName) {
+                    Text("System Default").tag("System")
+                    
+                    Divider()
+                    
+                    ForEach(NSFontManager.shared.availableFontFamilies.sorted(), id: \.self) { font in
+                        Text(font)
+                            .font(.custom(font, size: 13))
+                            .tag(font)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: fontName) { oldValue, newValue in
+                    // Update available font styles when font changes
+                    updateAvailableFontStyles()
+                    // Reset font style when changing fonts
+                    if !availableFontStyles.isEmpty {
+                        fontStyle = availableFontStyles[0]
+                    } else {
+                        fontStyle = ""
+                    }
+                }
+                
+                if fontName == "System" {
+                    Picker("Weight", selection: $fontWeight) {
+                        Text("Ultralight").tag("ultralight")
+                        Text("Thin").tag("thin")
+                        Text("Light").tag("light")
+                        Text("Regular").tag("regular")
+                        Text("Medium").tag("medium")
+                        Text("Semibold").tag("semibold")
+                        Text("Bold").tag("bold")
+                        Text("Heavy").tag("heavy")
+                        Text("Black").tag("black")
+                    }
+                    .pickerStyle(.menu)
+                    
+                    Picker("Design", selection: $fontDesign) {
+                        Text("Default").tag("default")
+                        Text("Serif").tag("serif")
+                        Text("Rounded").tag("rounded")
+                        Text("Monospaced").tag("monospaced")
+                    }
+                    .pickerStyle(.menu)
+                } else if !availableFontStyles.isEmpty {
+                    Picker("Style", selection: $fontStyle) {
+                        ForEach(availableFontStyles, id: \.self) { style in
+                            Text(style).tag(style)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
+                // Font preview
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Preview:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("12:34")
+                        .font(previewFont(size: 40))
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black.opacity(0.8))
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                }
+            } header: {
+                Text("Typography")
             }
         }
         .formStyle(.grouped)
         .padding()
         .onAppear {
-            loadGradientStops()
+            loadColors()
+            updateAvailableFontStyles()
         }
     }
     
-    private func addGradientStop() {
-        // Find a good position between existing stops
-        let newPosition: Double
-        if gradientStops.isEmpty {
-            newPosition = 0.5
-        } else {
-            let sorted = gradientStops.sorted { $0.position < $1.position }
-            newPosition = sorted.count > 1 ? (sorted[0].position + sorted[sorted.count - 1].position) / 2 : 0.5
+    private func updateAvailableFontStyles() {
+        guard fontName != "System" else {
+            availableFontStyles = []
+            return
         }
         
-        gradientStops.append(GradientStop(
-            color: GradientStop.CodableColor(color: .blue),
-            position: newPosition
-        ))
-        saveGradientStops()
-    }
-    
-    private func removeGradientStop(_ stop: GradientStop) {
-        gradientStops.removeAll { $0.id == stop.id }
-        saveGradientStops()
-    }
-    
-    private func saveGradientStops() {
-        let encoder = JSONEncoder()
-        if let data = try? encoder.encode(gradientStops),
-           let jsonString = String(data: data, encoding: .utf8) {
-            gradientStopsJSON = jsonString
-        }
-    }
-    
-    private func loadGradientStops() {
-        // Try to load from JSON
-        if !gradientStopsJSON.isEmpty,
-           let data = gradientStopsJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([GradientStop].self, from: data) {
-            gradientStops = decoded
+        // Get all available members (styles) for the selected font family
+        if let members = NSFontManager.shared.availableMembers(ofFontFamily: fontName) {
+            availableFontStyles = members.compactMap { member in
+                // member is an array: [PostScript name, display name, weight, traits]
+                if let styleName = member[1] as? String {
+                    return styleName
+                }
+                return nil
+            }
         } else {
-            // Default gradient stops
-            gradientStops = [
-                GradientStop(color: GradientStop.CodableColor(red: red, green: green, blue: blue, alpha: alpha), position: 0.0),
-                GradientStop(color: GradientStop.CodableColor(color: Color(red: 0.5, green: 0.5, blue: 1.0)), position: 1.0)
-            ]
-            saveGradientStops()
+            availableFontStyles = []
         }
+        
+        // If the current fontStyle is not in the new list, reset to first available
+        if !availableFontStyles.isEmpty && !availableFontStyles.contains(fontStyle) {
+            fontStyle = availableFontStyles[0]
+        }
+    }
+    
+    func previewFont(size: CGFloat) -> Font {
+        if fontName == "System" {
+            return .system(size: size, weight: fontWeightValue, design: fontDesignValue)
+        } else {
+            // For custom fonts, we need to get the full PostScript name
+            if let members = NSFontManager.shared.availableMembers(ofFontFamily: fontName),
+               let member = members.first(where: { ($0[1] as? String) == fontStyle }),
+               let postScriptName = member[0] as? String {
+                return .custom(postScriptName, size: size)
+            }
+            // Fallback to just the family name
+            return .custom(fontName, size: size)
+        }
+    }
+    
+    var fontWeightValue: Font.Weight {
+        switch fontWeight {
+        case "ultralight": return .ultraLight
+        case "thin": return .thin
+        case "light": return .light
+        case "regular": return .regular
+        case "medium": return .medium
+        case "semibold": return .semibold
+        case "bold": return .bold
+        case "heavy": return .heavy
+        case "black": return .black
+        default: return .thin
+        }
+    }
+    
+    var fontDesignValue: Font.Design {
+        switch fontDesign {
+        case "serif": return .serif
+        case "rounded": return .rounded
+        case "monospaced": return .monospaced
+        default: return .default
+        }
+    }
+    
+    private func saveColor(_ color: Color, isFirstColor: Bool) {
+        // Convert SwiftUI Color to NSColor and extract components
+        let nsColor = NSColor(color)
+        if let rgbColor = nsColor.usingColorSpace(.deviceRGB) {
+            if isFirstColor {
+                red = Double(rgbColor.redComponent)
+                green = Double(rgbColor.greenComponent)
+                blue = Double(rgbColor.blueComponent)
+                alpha = Double(rgbColor.alphaComponent)
+            } else {
+                red2 = Double(rgbColor.redComponent)
+                green2 = Double(rgbColor.greenComponent)
+                blue2 = Double(rgbColor.blueComponent)
+                alpha2 = Double(rgbColor.alphaComponent)
+            }
+        }
+    }
+    
+    private func loadColors() {
+        // Load colors from stored components
+        clockColor = Color(red: red, green: green, blue: blue, opacity: alpha)
+        gradientColor2 = Color(red: red2, green: green2, blue: blue2, opacity: alpha2)
     }
 }
 
@@ -519,7 +598,7 @@ struct AboutSettingsView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("Version Beta 1.2")
+            Text("Version Beta 1.3")
                 .foregroundStyle(.secondary)
             
             Text("Created by Wh0isG4ns")
