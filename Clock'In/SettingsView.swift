@@ -599,9 +599,22 @@ struct DisplaySettingsView: View {
                             HStack {
                                 Text("Shadow Blur Radius")
                                 Spacer()
-                                Text("\(Int(shadowRadius))px")
+                                TextField("", value: $shadowRadius, format: .number)
+                                    .frame(width: 60)
+                                    .textFieldStyle(.roundedBorder)
+                                    .multilineTextAlignment(.trailing)
+                                    .onChange(of: shadowRadius) { oldValue, newValue in
+                                        // Clamp the value within the valid range
+                                        if newValue < 0 {
+                                            shadowRadius = 0
+                                        } else if newValue > 20 {
+                                            shadowRadius = 20
+                                        }
+                                    }
+                                Text("px")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
+                                    .frame(width: 20, alignment: .leading)
                             }
                             
                             Slider(value: $shadowRadius, in: 0...20, step: 1)
@@ -621,19 +634,32 @@ struct DisplaySettingsView: View {
                             HStack {
                                 Text("Shadow Offset X")
                                 Spacer()
-                                Text("\(Int(shadowX))px")
+                                TextField("", value: $shadowX, format: .number)
+                                    .frame(width: 60)
+                                    .textFieldStyle(.roundedBorder)
+                                    .multilineTextAlignment(.trailing)
+                                    .onChange(of: shadowX) { oldValue, newValue in
+                                        // Clamp the value within the valid range
+                                        if newValue < -250 {
+                                            shadowX = -250
+                                        } else if newValue > 250 {
+                                            shadowX = 250
+                                        }
+                                    }
+                                Text("px")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
+                                    .frame(width: 20, alignment: .leading)
                             }
                             
                             Slider(value: $shadowX, in: -250...250, step: 1)
                             
                             HStack {
-                                Text("-100px")
+                                Text("-250px")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Text("100px")
+                                Text("250px")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -643,9 +669,22 @@ struct DisplaySettingsView: View {
                             HStack {
                                 Text("Shadow Offset Y")
                                 Spacer()
-                                Text("\(Int(shadowY))px")
+                                TextField("", value: $shadowY, format: .number)
+                                    .frame(width: 60)
+                                    .textFieldStyle(.roundedBorder)
+                                    .multilineTextAlignment(.trailing)
+                                    .onChange(of: shadowY) { oldValue, newValue in
+                                        // Clamp the value within the valid range
+                                        if newValue < -100 {
+                                            shadowY = -100
+                                        } else if newValue > 100 {
+                                            shadowY = 100
+                                        }
+                                    }
+                                Text("px")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
+                                    .frame(width: 20, alignment: .leading)
                             }
                             
                             Slider(value: $shadowY, in: -100...100, step: 1)
